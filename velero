@@ -1,0 +1,58 @@
+#liens utiles
+https://geko.cloud/kubernetes-backups-with-velero/
+https://hub.docker.com/r/velero/velero-plugin-for-aws/tags
+https://velero.io/plugins/
+https://github.com/vmware-tanzu/velero-plugin-for-aws/issues/12
+
+curl “https://awscli.amazonaws.com/awscli-exe-linux-x86_64.zip” -o “awscliv2.zip”
+yum install -y unzip
+unzip awscliv2.zip
+./aws/install
+
+aws configure
+
+aws s3api create-bucket –bucket velero-bucket-labs –region us-east-1
+
+yum install -y wget
+wget https://github.com/vmware-tanzu/velero/releases/download/v1.5.2/velero-v1.5.2-linux-amd64.tar.gz
+tar -xzvf velero-v1.5.2-linux-amd64.tar.gz
+mv velero-v1.5.2-linux-amd64/velero /usr/local/bin/
+
+# Installation de velero
+
+velero install
+–provider aws
+–bucket velero-bucket-labs
+–use-restic
+–secret-file ~/.aws/credentials
+–use-volume-snapshots=true
+–snapshot-location-config region=us-east-1
+–plugins=velero/velero-plugin-for-aws:v1.1.0
+–backup-location-config region=us-east-1
+
+kubectl logs deployment/velero -n velero
+kubectl get all -n velero
+
+# Déploiement de l’application
+
+kubectl apply -f https://k8s.io/examples/pods/storage/pv-volume.yaml -n prod
+kubectl apply -f https://k8s.io/examples/pods/storage/pv-claim.yaml -n prod
+kubectl apply -f https://k8s.io/examples/pods/storage/pv-pod.yaml -n prod
+
+velero backup create my-backup-complete
+velero backup create my-backup-prod –include-namespaces prod
+
+# simulation d’un incident
+
+kubectl delete pod task-pv-pod -n prod
+kubectl delete pvc task-pv-claim -n prod
+kubectl delete pv task-pv-volume -n prod
+
+#restore backup
+
+velero restore create –from-backup my-backup-prod
+
+# Uninstall velero
+
+kubectl delete namespace/velero clusterrolebinding/velero
+kubectl delete crds -l component=velero
